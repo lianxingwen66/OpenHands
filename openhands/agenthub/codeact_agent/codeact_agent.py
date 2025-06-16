@@ -1,15 +1,57 @@
+"""
+OpenHands CodeAct Agent 实现模块
+
+技术栈:
+- Python 3.12+ (核心语言)
+- LiteLLM - 多LLM提供商统一接口
+- Jinja2 - 模板引擎 (通过PromptManager)
+- Collections.deque - 高效的双端队列
+- AsyncIO - 异步编程支持
+- Docker - 容器化运行时
+- Jupyter - Python代码执行环境
+
+架构说明:
+CodeActAgent是OpenHands的核心Agent实现，基于CodeAct论文的思想，
+将所有Agent操作统一为代码执行。这种设计简化了Agent的复杂性，
+同时提供了强大的执行能力。
+
+CodeAct理念:
+1. 统一操作空间: 所有操作都通过代码执行
+2. 简化交互: 减少特殊化的Action类型
+3. 提高性能: 直接的代码执行更高效
+4. 增强能力: 支持复杂的编程任务
+
+核心能力:
+- Bash命令执行
+- Python代码执行 (IPython)
+- 文件操作 (读取、编辑、创建)
+- 网页浏览
+- 思考和推理
+- 任务完成判断
+
+设计模式:
+- 策略模式: 不同工具实现不同策略
+- 命令模式: Action作为可执行命令
+- 观察者模式: 事件驱动的执行流程
+- 工厂模式: 工具的动态创建和管理
+"""
+
 import os
 import sys
 from collections import deque
 from typing import TYPE_CHECKING
 
+# 类型检查时导入，避免循环导入
 if TYPE_CHECKING:
     from litellm import ChatCompletionToolParam
 
     from openhands.events.action import Action
     from openhands.llm.llm import ModelResponse
 
+# 函数调用处理模块
 import openhands.agenthub.codeact_agent.function_calling as codeact_function_calling
+
+# 工具导入 - CodeAct Agent的核心能力
 from openhands.agenthub.codeact_agent.tools.bash import create_cmd_run_tool
 from openhands.agenthub.codeact_agent.tools.browser import BrowserTool
 from openhands.agenthub.codeact_agent.tools.finish import FinishTool
@@ -19,6 +61,8 @@ from openhands.agenthub.codeact_agent.tools.str_replace_editor import (
     create_str_replace_editor_tool,
 )
 from openhands.agenthub.codeact_agent.tools.think import ThinkTool
+
+# 核心框架导入
 from openhands.controller.agent import Agent
 from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
@@ -28,19 +72,64 @@ from openhands.events.action import AgentFinishAction, MessageAction
 from openhands.events.event import Event
 from openhands.llm.llm import LLM
 from openhands.llm.llm_utils import check_tools
+
+# 内存管理系统
 from openhands.memory.condenser import Condenser
 from openhands.memory.condenser.condenser import Condensation, View
 from openhands.memory.conversation_memory import ConversationMemory
+
+# 运行时插件系统
 from openhands.runtime.plugins import (
-    AgentSkillsRequirement,
-    JupyterRequirement,
-    PluginRequirement,
+    AgentSkillsRequirement,  # Agent技能插件
+    JupyterRequirement,  # Jupyter环境插件
+    PluginRequirement,  # 插件基类
 )
 from openhands.utils.prompt import PromptManager
 
 
 class CodeActAgent(Agent):
+    """
+    CodeAct Agent - OpenHands的主要Agent实现
+
+    基于CodeAct论文的设计理念，将Agent的所有操作统一为代码执行。
+    这种方法简化了Agent的设计，同时提供了强大的执行能力。
+
+    核心特性:
+    1. 统一的代码执行接口
+    2. 支持Bash和Python代码
+    3. 集成文件操作能力
+    4. 网页浏览支持
+    5. 智能内存管理
+    6. 工具化的操作方式
+
+    执行流程:
+    1. 接收用户指令
+    2. 分析当前状态
+    3. 生成执行计划
+    4. 调用相应工具
+    5. 处理执行结果
+    6. 更新状态并继续
+
+    工具集合:
+    - BashTool: 执行shell命令
+    - IPythonTool: 执行Python代码
+    - FileEditTool: 文件编辑操作
+    - BrowserTool: 网页浏览
+    - ThinkTool: 思考和推理
+    - FinishTool: 任务完成
+    """
+
     VERSION = '2.2'
+    """
+    CodeAct Agent版本号
+
+    版本历史:
+    - 1.0: 初始版本，基本的代码执行能力
+    - 2.0: 增加了工具系统和内存管理
+    - 2.2: 优化了函数调用和错误处理
+    """
+
+    # Agent描述文档 (保留原始英文文档)
     """
     The Code Act Agent is a minimalist agent.
     The agent works by passing the model a list of action-observation pairs and prompting the model to take the next step.
@@ -60,12 +149,14 @@ class CodeActAgent(Agent):
 
     """
 
+    # 沙箱插件需求列表
+    # 定义了Agent运行所需的运行时环境插件
     sandbox_plugins: list[PluginRequirement] = [
-        # NOTE: AgentSkillsRequirement need to go before JupyterRequirement, since
-        # AgentSkillsRequirement provides a lot of Python functions,
-        # and it needs to be initialized before Jupyter for Jupyter to use those functions.
-        AgentSkillsRequirement(),
-        JupyterRequirement(),
+        # 注意: AgentSkillsRequirement必须在JupyterRequirement之前
+        # 因为AgentSkillsRequirement提供了大量Python函数，
+        # 需要在Jupyter初始化之前加载，以便Jupyter可以使用这些函数
+        AgentSkillsRequirement(),  # Agent技能插件 - 提供文件操作、网络请求等功能
+        JupyterRequirement(),  # Jupyter插件 - 提供Python代码执行环境
     ]
 
     def __init__(

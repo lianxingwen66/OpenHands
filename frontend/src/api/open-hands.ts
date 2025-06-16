@@ -1,25 +1,74 @@
+/**
+ * OpenHands API 客户端模块
+ *
+ * 技术栈:
+ * - Axios - HTTP客户端库
+ * - TypeScript - 类型安全
+ * - REST API - 后端通信协议
+ * - Promise/Async-Await - 异步编程
+ *
+ * 架构说明:
+ * 这个模块提供了与OpenHands后端API通信的统一接口。
+ * 实现了数据访问层(DAL)，封装了所有的HTTP请求逻辑。
+ *
+ * 核心功能:
+ * 1. 会话管理 (创建、获取、删除会话)
+ * 2. 用户认证 (GitHub OAuth、API密钥)
+ * 3. 配置管理 (LLM设置、Agent配置)
+ * 4. 文件操作 (上传、下载、编辑)
+ * 5. Git集成 (仓库操作、分支管理)
+ * 6. 反馈系统 (用户评价、错误报告)
+ * 7. 微代理管理 (获取、配置微代理)
+ *
+ * 设计模式:
+ * - 单例模式: OpenHands类作为全局API客户端
+ * - 工厂模式: 根据不同需求创建不同的请求
+ * - 代理模式: 封装底层HTTP请求
+ * - 观察者模式: 支持请求状态监听
+ */
+
 import { AxiosHeaders } from "axios";
+
+// API响应类型定义
 import {
-  Feedback,
-  FeedbackResponse,
-  GitHubAccessTokenResponse,
-  GetConfigResponse,
-  GetVSCodeUrlResponse,
-  AuthenticateResponse,
-  Conversation,
-  ResultSet,
-  GetTrajectoryResponse,
-  GitChangeDiff,
-  GitChange,
-  GetMicroagentsResponse,
-  GetMicroagentPromptResponse,
+  Feedback,                        // 用户反馈数据
+  FeedbackResponse,               // 反馈响应
+  GitHubAccessTokenResponse,      // GitHub访问令牌响应
+  GetConfigResponse,              // 配置获取响应
+  GetVSCodeUrlResponse,           // VSCode URL响应
+  AuthenticateResponse,           // 认证响应
+  Conversation,                   // 会话数据
+  ResultSet,                      // 结果集
+  GetTrajectoryResponse,          // 轨迹数据响应
+  GitChangeDiff,                  // Git变更差异
+  GitChange,                      // Git变更
+  GetMicroagentsResponse,         // 微代理列表响应
+  GetMicroagentPromptResponse,    // 微代理提示响应
 } from "./open-hands.types";
-import { openHands } from "./open-hands-axios";
+
+import { openHands } from "./open-hands-axios";  // 配置好的Axios实例
+
+// 类型定义导入
 import { ApiSettings, PostApiSettings, Provider } from "#/types/settings";
 import { GitUser, GitRepository, Branch } from "#/types/git";
 import { SuggestedTask } from "#/components/features/home/tasks/task.types";
 
+/**
+ * OpenHands API客户端类
+ *
+ * 提供与后端API通信的统一接口，管理所有的HTTP请求。
+ * 使用单例模式确保全局只有一个API客户端实例。
+ *
+ * 核心职责:
+ * 1. 封装所有API调用
+ * 2. 管理当前会话状态
+ * 3. 处理认证和授权
+ * 4. 提供类型安全的接口
+ * 5. 统一错误处理
+ */
 class OpenHands {
+  // 当前活跃的会话实例
+  // 用于跟踪用户当前正在进行的对话
   private static currentConversation: Conversation | null = null;
 
   /**
