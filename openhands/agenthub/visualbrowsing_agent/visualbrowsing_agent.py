@@ -1,21 +1,77 @@
-from browsergym.core.action.highlevel import HighLevelActionSet
-from browsergym.utils.obs import flatten_axtree_to_str
+"""
+OpenHands VisualBrowsingAgent - 可视化网页浏览代理
 
+技术栈:
+- Python 3.12+ (核心语言)
+- BrowserGym - 浏览器自动化框架
+- LiteLLM - 多LLM提供商统一接口，支持视觉模型
+- 计算机视觉 - 图像处理和分析
+- 多模态AI - 文本和图像的联合处理
+- Selenium/Playwright - 底层浏览器控制
+- 屏幕截图技术 - 页面视觉状态捕获
+
+架构说明:
+VisualBrowsingAgent是专门用于可视化网页浏览的智能代理。
+它结合了传统的网页浏览能力和计算机视觉技术，能够理解
+网页的视觉布局，并基于视觉信息进行智能操作。
+
+核心能力:
+1. 视觉网页理解 - 分析网页的视觉布局和元素
+2. 屏幕截图分析 - 处理和理解页面截图
+3. 多模态交互 - 结合文本和图像信息
+4. 视觉元素定位 - 基于视觉特征定位页面元素
+5. 智能点击操作 - 根据视觉信息执行精确操作
+6. 页面状态理解 - 理解页面的视觉状态变化
+
+技术特性:
+- 支持多模态LLM (如GPT-4V, Claude-3等)
+- 实时屏幕截图捕获
+- 视觉元素识别和定位
+- 图像内容理解
+- 视觉反馈循环
+
+应用场景:
+- 复杂网页自动化
+- 视觉UI测试
+- 网页可访问性测试
+- 图形界面操作
+- 视觉内容分析
+
+设计模式:
+- 观察者模式: 视觉状态变化监听
+- 策略模式: 不同的视觉处理策略
+- 适配器模式: 多模态数据适配
+- 命令模式: 视觉操作命令化
+"""
+
+# BrowserGym - 浏览器自动化框架
+from browsergym.core.action.highlevel import HighLevelActionSet  # 高级浏览器操作
+from browsergym.utils.obs import flatten_axtree_to_str  # 可访问性树处理
+
+# 浏览器代理响应解析器
 from openhands.agenthub.browsing_agent.response_parser import BrowsingResponseParser
+
+# 核心框架组件
 from openhands.controller.agent import Agent
 from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
 from openhands.core.logger import openhands_logger as logger
+
+# 多模态消息支持 - 支持文本和图像内容
 from openhands.core.message import ImageContent, Message, TextContent
+
+# 事件系统
 from openhands.events.action import (
-    Action,
-    AgentFinishAction,
-    BrowseInteractiveAction,
-    MessageAction,
+    Action,  # 基础Action类
+    AgentFinishAction,  # 任务完成Action
+    BrowseInteractiveAction,  # 浏览器交互Action
+    MessageAction,  # 消息Action
 )
 from openhands.events.event import EventSource
 from openhands.events.observation import BrowserOutputObservation
 from openhands.events.observation.observation import Observation
+
+# LLM和插件系统
 from openhands.llm.llm import LLM
 from openhands.runtime.plugins import (
     PluginRequirement,
@@ -23,7 +79,19 @@ from openhands.runtime.plugins import (
 
 
 def get_error_prefix(obs: BrowserOutputObservation) -> str:
-    # temporary fix for OneStopMarket to ignore timeout errors
+    """
+    生成错误提示前缀
+
+    根据浏览器观察结果生成错误提示信息。
+    对于超时错误进行特殊处理（临时修复OneStopMarket的超时问题）。
+
+    Args:
+        obs: 浏览器输出观察结果
+
+    Returns:
+        str: 格式化的错误提示前缀，如果是超时错误则返回空字符串
+    """
+    # OneStopMarket的临时修复：忽略超时错误
     if 'timeout' in obs.last_browser_action_error:
         return ''
     return f'## Error from previous action:\n{obs.last_browser_action_error}\n'
@@ -32,6 +100,19 @@ def get_error_prefix(obs: BrowserOutputObservation) -> str:
 def create_goal_prompt(
     goal: str, image_urls: list[str] | None
 ) -> tuple[str, list[str]]:
+    """
+    创建目标提示信息
+
+    生成包含目标描述和相关图像的提示信息。
+    支持多模态输入，将文本目标和图像信息结合。
+
+    Args:
+        goal: 任务目标的文本描述
+        image_urls: 相关图像的URL列表，可选
+
+    Returns:
+        tuple[str, list[str]]: 包含格式化的目标文本和图像URL列表的元组
+    """
     goal_txt: str = f"""\
 # Instructions
 Review the current state of the page and all other information to find the best possible next action to accomplish your goal. Your answer will be interpreted and executed by a program, make sure to follow the formatting instructions.
