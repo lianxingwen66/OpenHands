@@ -1,46 +1,90 @@
-"""This file contains the function calling implementation for different actions.
+"""
+OpenHands CodeAct Agent 函数调用实现模块
 
-This is similar to the functionality of `CodeActResponseParser`.
+技术栈:
+- Python 3.12+ (核心语言)
+- LiteLLM - 多LLM提供商统一接口
+- JSON - 函数调用参数解析
+- Function Calling - LLM原生函数调用机制
+- 工具系统 - 各种专门化工具的集成
+
+架构说明:
+这个模块实现了CodeActAgent的函数调用功能，类似于CodeActResponseParser的功能。
+它负责将LLM的函数调用响应转换为具体的Action对象，实现了从LLM输出到
+系统操作的桥梁。
+
+核心功能:
+1. 函数调用解析 - 解析LLM的函数调用响应
+2. Action转换 - 将函数调用转换为Action对象
+3. 参数验证 - 验证函数调用参数的有效性
+4. 错误处理 - 处理函数调用中的各种错误
+5. 思考合并 - 将思考内容与操作结合
+6. 工具映射 - 将函数名映射到具体工具
+
+设计模式:
+- 工厂模式: 根据函数名创建对应的Action
+- 策略模式: 不同工具的不同处理策略
+- 适配器模式: LLM响应到Action的适配
+- 装饰器模式: 为Action添加思考内容
 """
 
 import json
 
+# LiteLLM响应类型
 from litellm import (
     ModelResponse,
 )
 
+# CodeAct工具集导入
 from openhands.agenthub.codeact_agent.tools import (
-    BrowserTool,
-    FinishTool,
-    IPythonTool,
-    LLMBasedFileEditTool,
-    ThinkTool,
-    create_cmd_run_tool,
-    create_str_replace_editor_tool,
+    BrowserTool,  # 浏览器工具
+    FinishTool,  # 完成工具
+    IPythonTool,  # Python执行工具
+    LLMBasedFileEditTool,  # LLM文件编辑工具
+    ThinkTool,  # 思考工具
+    create_cmd_run_tool,  # 命令执行工具创建器
+    create_str_replace_editor_tool,  # 字符串替换编辑工具创建器
 )
+
+# 异常处理
 from openhands.core.exceptions import (
-    FunctionCallNotExistsError,
-    FunctionCallValidationError,
+    FunctionCallNotExistsError,  # 函数调用不存在错误
+    FunctionCallValidationError,  # 函数调用验证错误
 )
 from openhands.core.logger import openhands_logger as logger
+
+# Action类型导入
 from openhands.events.action import (
-    Action,
-    AgentDelegateAction,
-    AgentFinishAction,
-    AgentThinkAction,
-    BrowseInteractiveAction,
-    CmdRunAction,
-    FileEditAction,
-    FileReadAction,
-    IPythonRunCellAction,
-    MessageAction,
+    Action,  # 基础Action类
+    AgentDelegateAction,  # Agent委托Action
+    AgentFinishAction,  # Agent完成Action
+    AgentThinkAction,  # Agent思考Action
+    BrowseInteractiveAction,  # 浏览器交互Action
+    CmdRunAction,  # 命令执行Action
+    FileEditAction,  # 文件编辑Action
+    FileReadAction,  # 文件读取Action
+    IPythonRunCellAction,  # IPython执行Action
+    MessageAction,  # 消息Action
 )
-from openhands.events.action.mcp import MCPAction
-from openhands.events.event import FileEditSource, FileReadSource
-from openhands.events.tool import ToolCallMetadata
+from openhands.events.action.mcp import MCPAction  # MCP Action
+from openhands.events.event import FileEditSource, FileReadSource  # 文件操作源
+from openhands.events.tool import ToolCallMetadata  # 工具调用元数据
 
 
 def combine_thought(action: Action, thought: str) -> Action:
+    """
+    合并思考内容到Action中
+
+    将LLM的思考内容与具体的操作Action结合，提供更丰富的上下文信息。
+    如果Action已有思考内容，则将新的思考内容追加到前面。
+
+    Args:
+        action: 要添加思考内容的Action对象
+        thought: 思考内容字符串
+
+    Returns:
+        Action: 包含思考内容的Action对象
+    """
     if not hasattr(action, 'thought'):
         return action
     if thought and action.thought:

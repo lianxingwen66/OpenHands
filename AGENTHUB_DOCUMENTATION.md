@@ -12,11 +12,22 @@ AgentHub是OpenHands框架中所有智能代理实现的集中管理中心。本
   - 架构说明：模块化设计、可扩展架构、统一接口
   - 设计理念：专业化分工、统一接口、模块化设计
 
-### 2. CodeActAgent (已部分完成)
-- ✅ **codeact_agent.py** - 主要Agent实现的详细注释
+### 2. CodeActAgent (已完成)
+- ✅ **codeact_agent.py** - 主要Agent实现的完整注释
   - 技术栈：LiteLLM, Jinja2, Collections.deque, Docker, Jupyter
   - CodeAct理念和架构说明
   - 工具系统和插件说明
+  - 初始化流程和配置管理
+- ✅ **function_calling.py** - 函数调用实现的完整注释
+  - 技术栈：JSON, Function Calling, 工具系统集成
+  - LLM响应到Action的转换机制
+  - 参数验证和错误处理
+- ✅ **tools/bash.py** - Bash工具的详细注释
+  - 技术栈：Bash Shell, 进程管理, 超时控制
+  - 持久化shell会话和交互式操作
+- ✅ **tools/ipython.py** - IPython工具的完整注释
+  - 技术栈：IPython, Jupyter, Magic Commands
+  - 隔离的Python执行环境和变量管理
 
 ### 3. BrowsingAgent
 - ✅ **browsing_agent.py** - 网页浏览代理的完整注释

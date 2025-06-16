@@ -164,25 +164,45 @@ class CodeActAgent(Agent):
         llm: LLM,
         config: AgentConfig,
     ) -> None:
-        """Initializes a new instance of the CodeActAgent class.
+        """
+        初始化CodeActAgent实例
 
-        Parameters:
-        - llm (LLM): The llm to be used by this agent
-        - config (AgentConfig): The configuration for this agent
+        设置Agent的核心组件，包括工具集、内存管理、提示管理器等。
+        这是Agent生命周期的起点，所有必要的组件都在这里初始化。
+
+        Args:
+            llm: 语言模型实例，用于生成响应和执行推理
+            config: Agent配置，包含各种功能开关和参数设置
         """
         super().__init__(llm, config)
+
+        # 待执行操作队列 - 使用双端队列提高性能
         self.pending_actions: deque['Action'] = deque()
+
+        # 重置Agent状态
         self.reset()
+
+        # 获取可用工具集
         self.tools = self._get_tools()
 
-        # Create a ConversationMemory instance
+        # 创建对话内存实例 - 管理对话历史和上下文
         self.conversation_memory = ConversationMemory(self.config, self.prompt_manager)
 
+        # 创建内存压缩器 - 处理长对话的内存管理
         self.condenser = Condenser.from_config(self.config.condenser)
         logger.debug(f'Using condenser: {type(self.condenser)}')
 
     @property
     def prompt_manager(self) -> PromptManager:
+        """
+        提示管理器属性
+
+        延迟初始化的提示管理器，负责加载和管理所有的提示模板。
+        使用属性模式确保只在需要时创建实例。
+
+        Returns:
+            PromptManager: 提示管理器实例
+        """
         if self._prompt_manager is None:
             self._prompt_manager = PromptManager(
                 prompt_dir=os.path.join(os.path.dirname(__file__), 'prompts'),
@@ -191,10 +211,20 @@ class CodeActAgent(Agent):
         return self._prompt_manager
 
     def _get_tools(self) -> list['ChatCompletionToolParam']:
-        # For these models, we use short tool descriptions ( < 1024 tokens)
-        # to avoid hitting the OpenAI token limit for tool descriptions.
+        """
+        获取Agent可用的工具集
+
+        根据配置动态构建工具列表。不同的LLM模型可能需要不同的工具描述长度，
+        这里会根据模型类型调整工具描述的详细程度。
+
+        Returns:
+            list[ChatCompletionToolParam]: 可用工具的列表
+        """
+        # 需要使用短工具描述的模型列表（< 1024 tokens）
+        # 避免触及OpenAI工具描述的token限制
         SHORT_TOOL_DESCRIPTION_LLM_SUBSTRS = ['gpt-', 'o3', 'o1', 'o4']
 
+        # 判断是否需要使用短工具描述
         use_short_tool_desc = False
         if self.llm is not None:
             use_short_tool_desc = any(
@@ -202,20 +232,33 @@ class CodeActAgent(Agent):
                 for model_substr in SHORT_TOOL_DESCRIPTION_LLM_SUBSTRS
             )
 
+        # 根据配置构建工具列表
         tools = []
+
+        # 命令执行工具 - 执行bash命令
         if self.config.enable_cmd:
             tools.append(create_cmd_run_tool(use_short_description=use_short_tool_desc))
+
+        # 思考工具 - 进行推理和分析
         if self.config.enable_think:
             tools.append(ThinkTool)
+
+        # 完成工具 - 标记任务完成
         if self.config.enable_finish:
             tools.append(FinishTool)
+
+        # 浏览器工具 - 网页浏览功能
         if self.config.enable_browsing:
             if sys.platform == 'win32':
                 logger.warning('Windows runtime does not support browsing yet')
             else:
                 tools.append(BrowserTool)
+
+        # Jupyter工具 - Python代码执行
         if self.config.enable_jupyter:
             tools.append(IPythonTool)
+
+        # LLM编辑工具 - 基于LLM的文件编辑
         if self.config.enable_llm_editor:
             tools.append(LLMBasedFileEditTool)
         elif self.config.enable_editor:
