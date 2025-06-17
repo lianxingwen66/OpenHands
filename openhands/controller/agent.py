@@ -15,7 +15,7 @@ OpenHands Agent 抽象基类模块
 设计模式:
 - 抽象工厂模式: 通过注册机制创建不同类型的Agent
 - 模板方法模式: 定义了Agent的基本执行流程
-- 策略模式: 不同的Agent实现不同的执行策略
+- 策略模式: 不同的Agent实现不同的执行策略。
 """
 
 from __future__ import annotations
