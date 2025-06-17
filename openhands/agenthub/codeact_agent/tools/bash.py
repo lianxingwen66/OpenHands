@@ -1,7 +1,37 @@
+"""
+OpenHands CodeAct Agent Bash工具模块
+
+技术栈:
+- Python 3.12+ (核心语言)
+- LiteLLM - 函数调用工具定义
+- Bash Shell - 命令执行环境
+- 进程管理 - 长时间运行进程的处理
+- 超时控制 - 命令执行时间限制
+
+架构说明:
+Bash工具是CodeActAgent的核心工具之一，提供了在持久化shell会话中
+执行bash命令的能力。它支持复杂的进程管理、超时控制和交互式操作。
+
+核心功能:
+1. 命令执行 - 在持久化shell会话中执行bash命令
+2. 进程管理 - 处理长时间运行的进程
+3. 超时控制 - 软超时和硬超时机制
+4. 交互式操作 - 与运行中的进程交互
+5. 输出处理 - 处理和截断命令输出
+6. 环境持久化 - 保持环境变量和工作目录
+
+设计模式:
+- 工厂模式: 根据需求创建不同描述详细程度的工具
+- 策略模式: 不同的命令执行策略
+- 状态模式: 进程状态管理
+"""
+
 import sys
 
+# LiteLLM工具定义类型
 from litellm import ChatCompletionToolParam, ChatCompletionToolParamFunctionChunk
 
+# 工具名称常量
 from openhands.llm.tool_names import EXECUTE_BASH_TOOL_NAME
 
 _DETAILED_BASH_DESCRIPTION = """Execute a bash command in the terminal within a persistent shell session.

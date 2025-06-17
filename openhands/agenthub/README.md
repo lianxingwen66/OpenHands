@@ -1,9 +1,33 @@
-# Agent Hub
+# Agent Hub - OpenHands智能代理中心
 
-In this folder, there may exist multiple implementations of `Agent` that will be used by the framework.
+## 技术栈概览
+- **Python 3.12+** - 核心编程语言
+- **LiteLLM** - 多LLM提供商统一接口
+- **Pydantic** - 数据验证和序列化
+- **Abstract Base Classes** - 抽象基类设计模式
+- **Pickle** - 状态序列化存储
+- **Jupyter** - Python代码执行环境
+- **Docker** - 容器化沙箱环境
 
-For example, `openhands/agenthub/codeact_agent`, etc.
-Contributors from different backgrounds and interests can choose to contribute to any (or all!) of these directions.
+## 架构说明
+
+Agent Hub是OpenHands框架中所有智能代理实现的集中管理中心。这个目录包含了多种不同类型的Agent实现，每种Agent都针对特定的任务场景进行了优化。
+
+### 设计理念
+1. **模块化设计**: 每个Agent都是独立的模块，可以单独开发和维护
+2. **可扩展架构**: 支持添加新的Agent类型而不影响现有实现
+3. **统一接口**: 所有Agent都遵循相同的抽象接口
+4. **专业化分工**: 不同Agent专注于不同的任务领域
+
+### 当前Agent类型
+- **CodeActAgent** - 代码执行专家，基于CodeAct论文实现
+- **BrowsingAgent** - 网页浏览专家，专注于网络信息获取
+- **ReadonlyAgent** - 只读模式Agent，用于安全的信息查看
+- **LocAgent** - 基于位置的操作Agent
+- **VisualBrowsingAgent** - 可视化网页浏览Agent
+- **DummyAgent** - 测试用简单Agent
+
+不同背景和兴趣的贡献者可以选择为任何（或全部！）这些方向做出贡献。
 
 ## Constructing an Agent
 

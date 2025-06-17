@@ -1,46 +1,115 @@
+"""
+OpenHands BrowsingAgent - 网页浏览智能代理
+
+技术栈:
+- Python 3.12+ (核心语言)
+- BrowserGym - 浏览器自动化框架，提供高级浏览器操作
+- LiteLLM - 多LLM提供商统一接口
+- Selenium/Playwright - 底层浏览器控制 (通过BrowserGym)
+- HTML/CSS解析 - 网页内容分析
+- XPath/CSS选择器 - 元素定位
+- JavaScript执行 - 动态网页交互
+
+架构说明:
+BrowsingAgent是专门用于网页浏览和网络信息获取的智能代理。
+它能够理解网页结构，执行复杂的浏览器操作，并从网页中提取有用信息。
+
+核心能力:
+1. 网页导航和浏览
+2. 表单填写和提交
+3. 元素点击和交互
+4. 网页内容提取
+5. 多页面会话管理
+6. JavaScript执行
+7. 错误处理和重试
+
+设计模式:
+- 策略模式: 不同的浏览器操作策略
+- 观察者模式: 页面状态变化监听
+- 命令模式: 浏览器操作命令化
+- 适配器模式: BrowserGym接口适配
+"""
+
 import os
 
-from browsergym.core.action.highlevel import HighLevelActionSet
-from browsergym.utils.obs import flatten_axtree_to_str
+# BrowserGym - 浏览器自动化框架
+from browsergym.core.action.highlevel import HighLevelActionSet  # 高级浏览器操作集
+from browsergym.utils.obs import flatten_axtree_to_str  # 可访问性树扁平化
 
+# 内部模块导入
 from openhands.agenthub.browsing_agent.response_parser import BrowsingResponseParser
 from openhands.controller.agent import Agent
 from openhands.controller.state.state import State
 from openhands.core.config import AgentConfig
 from openhands.core.logger import openhands_logger as logger
 from openhands.core.message import Message, TextContent
+
+# 事件系统
 from openhands.events.action import (
-    Action,
-    AgentFinishAction,
-    BrowseInteractiveAction,
-    MessageAction,
+    Action,  # 基础Action类
+    AgentFinishAction,  # 任务完成Action
+    BrowseInteractiveAction,  # 浏览器交互Action
+    MessageAction,  # 消息Action
 )
 from openhands.events.event import EventSource
 from openhands.events.observation import BrowserOutputObservation
 from openhands.events.observation.observation import Observation
+
+# LLM和插件系统
 from openhands.llm.llm import LLM
 from openhands.runtime.plugins import (
     PluginRequirement,
 )
 
+# 环境配置变量 - 用于不同评估模式的配置
 USE_NAV = (
     os.environ.get('USE_NAV', 'true') == 'true'
-)  # only disable NAV actions when running webarena and miniwob benchmarks
+)  # 导航操作开关 - 在WebArena和MiniWoB基准测试时禁用导航操作
+
 USE_CONCISE_ANSWER = (
     os.environ.get('USE_CONCISE_ANSWER', 'false') == 'true'
-)  # only return concise answer when running webarena and miniwob benchmarks
+)  # 简洁回答模式 - 在WebArena和MiniWoB基准测试时只返回简洁答案
 
+# 评估模式判断
+# 当禁用导航操作且启用简洁回答时，进入评估模式
 if not USE_NAV and USE_CONCISE_ANSWER:
-    EVAL_MODE = True  # disabled NAV actions and only return concise answer, for webarena and miniwob benchmarks\
+    EVAL_MODE = (
+        True  # 评估模式：禁用导航操作，只返回简洁答案，用于WebArena和MiniWoB基准测试
+    )
 else:
-    EVAL_MODE = False
+    EVAL_MODE = False  # 正常模式：完整功能
 
 
 def get_error_prefix(last_browser_action: str) -> str:
+    """
+    生成错误提示前缀
+
+    当浏览器操作失败时，生成包含错误信息的提示前缀，
+    帮助Agent理解上一个操作的问题并重新思考。
+
+    Args:
+        last_browser_action: 上一个失败的浏览器操作描述
+
+    Returns:
+        str: 格式化的错误提示前缀
+    """
     return f'IMPORTANT! Last action is incorrect:\n{last_browser_action}\nThink again with the current observation of the page.\n'
 
 
 def get_system_message(goal: str, action_space: str) -> str:
+    """
+    生成BrowsingAgent的系统消息
+
+    系统消息定义了Agent的角色、目标和操作规范。
+    包含详细的指令说明和格式要求。
+
+    Args:
+        goal: 当前任务的目标描述
+        action_space: 可用的操作空间描述
+
+    Returns:
+        str: 完整的系统消息字符串
+    """
     return f"""\
 # Instructions
 Review the current state of the page and all other information to find the best
